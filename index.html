@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mindset Place Recommender</title>
+  <meta name="description" content="Discover the best travel destinations based on your current mindset. 10 curated places for every mood." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Animated background orbs -->
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <main class="wrapper">
+    <header class="hero">
+      <div class="hero-icon">🧭</div>
+      <h1 class="hero-title">Where Should You Go?</h1>
+      <p class="hero-sub">Tell us your mindset — we'll find your perfect destination.</p>
+    </header>
+
+    <section class="mood-picker" aria-label="Mindset selector">
+      <p class="mood-label">I'm feeling…</p>
+      <div class="mood-grid" id="moodGrid" role="radiogroup" aria-label="Select your mood"></div>
+    </section>
+
+    <section class="results-section" id="resultsSection" aria-label="Recommended places" style="display:none;">
+      <h2 class="results-title" id="resultsTitle"></h2>
+      <div class="results-grid" id="resultsGrid"></div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

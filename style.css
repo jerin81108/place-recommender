@@ -1,0 +1,275 @@
+/* ===========================
+   Reset & Base
+=========================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #0d0d1a;
+  --surface: rgba(255,255,255,0.05);
+  --surface-hover: rgba(255,255,255,0.10);
+  --border: rgba(255,255,255,0.10);
+  --text-primary: #f0f4ff;
+  --text-muted: #8b95b5;
+  --accent: #6c63ff;
+  --accent2: #ff6b9d;
+  --radius: 16px;
+  --transition: 0.25s ease;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* ===========================
+   Animated Orbs
+=========================== */
+.orb {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.3;
+  pointer-events: none;
+  z-index: 0;
+  animation: drift 12s ease-in-out infinite alternate;
+}
+.orb-1 {
+  width: 480px; height: 480px;
+  background: radial-gradient(circle, #6c63ff, transparent);
+  top: -120px; left: -100px;
+  animation-delay: 0s;
+}
+.orb-2 {
+  width: 360px; height: 360px;
+  background: radial-gradient(circle, #ff6b9d, transparent);
+  bottom: -100px; right: -80px;
+  animation-delay: -4s;
+}
+.orb-3 {
+  width: 280px; height: 280px;
+  background: radial-gradient(circle, #00e5ff, transparent);
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  animation-delay: -8s;
+}
+@keyframes drift {
+  0%   { transform: scale(1) translate(0, 0); }
+  100% { transform: scale(1.15) translate(30px, 20px); }
+}
+
+/* ===========================
+   Layout
+=========================== */
+.wrapper {
+  position: relative;
+  z-index: 1;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 5rem;
+}
+
+/* ===========================
+   Hero
+=========================== */
+.hero {
+  text-align: center;
+  margin-bottom: 3rem;
+  animation: fadeDown 0.7s ease both;
+}
+.hero-icon {
+  font-size: 3.5rem;
+  margin-bottom: 0.75rem;
+  display: block;
+}
+.hero-title {
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  font-weight: 800;
+  background: linear-gradient(135deg, #a78bfa, #f472b6, #60a5fa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.15;
+  margin-bottom: 0.75rem;
+}
+.hero-sub {
+  font-size: 1.05rem;
+  color: var(--text-muted);
+  font-weight: 300;
+}
+
+/* ===========================
+   Mood Picker
+=========================== */
+.mood-label {
+  text-align: center;
+  font-size: 1rem;
+  color: var(--text-muted);
+  margin-bottom: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.mood-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.mood-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 50px;
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  position: relative;
+  overflow: hidden;
+}
+.mood-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--c1, #6c63ff), var(--c2, #ff6b9d));
+  opacity: 0;
+  transition: opacity var(--transition);
+  z-index: 0;
+}
+.mood-btn span { position: relative; z-index: 1; }
+.mood-btn:hover::before, .mood-btn.active::before { opacity: 1; }
+.mood-btn:hover, .mood-btn.active {
+  border-color: transparent;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+}
+.mood-btn.active {
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.35), 0 8px 24px rgba(0,0,0,0.4);
+}
+
+/* ===========================
+   Results Section
+=========================== */
+.results-section {
+  margin-top: 3.5rem;
+  animation: fadeUp 0.5s ease both;
+}
+.results-title {
+  text-align: center;
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 1.75rem;
+  color: var(--text-primary);
+  letter-spacing: 0.01em;
+}
+
+.results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1.1rem;
+}
+
+/* Place Card */
+.place-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.2rem 1.4rem;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  transition: all var(--transition);
+  opacity: 0;
+  transform: translateY(18px);
+  animation: cardIn 0.45s ease forwards;
+}
+.place-card:hover {
+  background: var(--surface-hover);
+  border-color: rgba(255,255,255,0.2);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.3);
+}
+
+.place-num {
+  font-size: 1.6rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--c1, #6c63ff), var(--c2, #ff6b9d));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  min-width: 2rem;
+  line-height: 1;
+  margin-top: 2px;
+}
+
+.place-info { flex: 1; }
+.place-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+.place-country {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+.place-emoji {
+  font-size: 1.6rem;
+  margin-left: auto;
+  align-self: center;
+}
+
+/* Staggered animation */
+.place-card:nth-child(1)  { animation-delay: 0.05s; }
+.place-card:nth-child(2)  { animation-delay: 0.10s; }
+.place-card:nth-child(3)  { animation-delay: 0.15s; }
+.place-card:nth-child(4)  { animation-delay: 0.20s; }
+.place-card:nth-child(5)  { animation-delay: 0.25s; }
+.place-card:nth-child(6)  { animation-delay: 0.30s; }
+.place-card:nth-child(7)  { animation-delay: 0.35s; }
+.place-card:nth-child(8)  { animation-delay: 0.40s; }
+.place-card:nth-child(9)  { animation-delay: 0.45s; }
+.place-card:nth-child(10) { animation-delay: 0.50s; }
+
+@keyframes cardIn {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===========================
+   Keyframe Animations
+=========================== */
+@keyframes fadeDown {
+  from { opacity: 0; transform: translateY(-24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ===========================
+   Responsive
+=========================== */
+@media (max-width: 500px) {
+  .results-grid { grid-template-columns: 1fr; }
+}
