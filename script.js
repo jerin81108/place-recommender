@@ -1,22 +1,95 @@
 /**
- * Mindset → Place Recommender
+ * Mindset & Multi-Model Place Recommender
  * ──────────────────────────────────────────────────────────────────────────────
- * ALGORITHM OVERVIEW
+ * ALGORITHM & MODEL ARCHITECTURE
  * ──────────────────────────────────────────────────────────────────────────────
- * 1. Each place in PLACES has ten attribute scores (0–10).
- * 2. Each mindset in MINDSET_WEIGHTS defines a weight vector over those same
- *    attributes — capturing how much each attribute matters for that mindset.
- * 3. recommend(mindsetId) computes a dot-product score for every place:
- *        score = Σ  weight[attr] × place.tags[attr]
- * 4. Places are sorted descending by score and the top 10 are returned.
+ * 1. Master Pool: 40 global destinations each characterized across 10 dimensions:
+ *    [relaxed, adventurous, romantic, cultural, nature, party, family, solo, budget, luxury] (0–10).
  *
- * This lets the same place appear across multiple mindsets at different ranks,
- * producing genuinely tailored, overlap-aware rankings rather than fixed lists.
+ * 2. Selectable Recommendation Models:
+ *    - Model A: Weighted Utility (Linear Dot-Product with importance multipliers)
+ *    - Model B: Cosine Similarity (Vector angle orientation in 10D space)
+ *    - Model C: K-Nearest Neighbors / KNN (Weighted Euclidean distance in feature space)
+ *    - Model D: Hybrid MMR (Maximal Marginal Relevance balancing relevance & diversity)
+ *
+ * 3. Dynamic Preference Sources:
+ *    - Preset Mindsets (supports multi-selection blending!)
+ *    - Custom Trait Mixer (10 real-time continuous sliders)
+ *    - Destination Twin (Item-to-Item content filtering using any place as anchor)
  */
 
-// ─── PLACE MASTER POOL ────────────────────────────────────────────────────────
-// tags: { relaxed, adventurous, romantic, cultural, nature, party, family, solo, budget, luxury }
-// All scores 0–10; note: one or two vivid sentences about the destination.
+// ─── ATTRIBUTE DIMENSIONS ──────────────────────────────────────────────────────
+const ATTRIBUTES = [
+  'relaxed',
+  'adventurous',
+  'romantic',
+  'cultural',
+  'nature',
+  'party',
+  'family',
+  'solo',
+  'budget',
+  'luxury'
+];
+
+const ATTR_META = {
+  relaxed:     { label: 'Relaxed',     icon: '😌', color: '#38bdf8' },
+  adventurous: { label: 'Adventurous', icon: '🧗', color: '#fb923c' },
+  romantic:    { label: 'Romantic',    icon: '💖', color: '#f43f5e' },
+  cultural:    { label: 'Cultural',    icon: '🏛️', color: '#c084fc' },
+  nature:      { label: 'Nature',      icon: '🌿', color: '#4ade80' },
+  party:       { label: 'Party',       icon: '🎉', color: '#ec4899' },
+  family:      { label: 'Family',      icon: '👨‍👩‍👧‍👦', color: '#60a5fa' },
+  solo:        { label: 'Solo',        icon: '🎒', color: '#facc15' },
+  budget:      { label: 'Budget',      icon: '💰', color: '#a3e635' },
+  luxury:      { label: 'Luxury',      icon: '💎', color: '#fbbf24' }
+};
+
+// ─── REGION LOOKUP ────────────────────────────────────────────────────────────
+const REGION_MAP = {
+  'Maldives': 'Asia',
+  'Bali': 'Asia',
+  'Santorini': 'Europe',
+  'Paris': 'Europe',
+  'Queenstown': 'Oceania',
+  'Patagonia': 'Americas',
+  'Rome': 'Europe',
+  'Kyoto': 'Asia',
+  'Ibiza': 'Europe',
+  'Bangkok': 'Asia',
+  'Hoi An': 'Asia',
+  'Seychelles': 'Africa',
+  'Banff': 'Americas',
+  'Venice': 'Europe',
+  'Machu Picchu': 'Americas',
+  'Istanbul': 'Europe',
+  'Reykjavik': 'Europe',
+  'Lisbon': 'Europe',
+  'Dubai': 'Asia',
+  'Chiang Mai': 'Asia',
+  'Serengeti': 'Africa',
+  'Bora Bora': 'Oceania',
+  'Barcelona': 'Europe',
+  'Norwegian Fjords': 'Europe',
+  'Marrakech': 'Africa',
+  'Amalfi Coast': 'Europe',
+  'Singapore': 'Asia',
+  'Tbilisi': 'Europe',
+  'Mykonos': 'Europe',
+  'Budapest': 'Europe',
+  'Cape Town': 'Africa',
+  'Monaco': 'Europe',
+  'Galápagos Islands': 'Americas',
+  'Medellín': 'Americas',
+  'Kerala': 'Asia',
+  'Aspen': 'Americas',
+  'Zanzibar': 'Africa',
+  'Krakow': 'Europe',
+  'Great Barrier Reef': 'Oceania',
+  'Tokyo': 'Asia'
+};
+
+// ─── PLACE MASTER POOL (40 DESTINATIONS) ──────────────────────────────────────
 const PLACES = [
   {
     name: 'Maldives', country: 'South Asia', icon: '🏝️',
@@ -221,7 +294,6 @@ const PLACES = [
 ];
 
 // ─── MINDSET UI CONFIG ────────────────────────────────────────────────────────
-// id, label, emoji, gradient colors for buttons & cards
 const MINDSETS = [
   { id: 'relaxed',     label: 'Relaxed',     emoji: '😌', c1: '#4facfe', c2: '#00f2fe' },
   { id: 'adventurous', label: 'Adventurous', emoji: '🧗', c1: '#f97316', c2: '#fbbf24' },
@@ -235,9 +307,7 @@ const MINDSETS = [
   { id: 'luxury',      label: 'Luxury',      emoji: '💎', c1: '#d4af37', c2: '#b8860b' },
 ];
 
-// ─── MINDSET WEIGHT VECTORS ───────────────────────────────────────────────────
-// Each key maps to a weight for the corresponding place attribute.
-// Weights are relative importance multipliers — they don't need to sum to 1.
+// ─── MINDSET BASE WEIGHT VECTORS ──────────────────────────────────────────────
 const MINDSET_WEIGHTS = {
   relaxed:     { relaxed: 1.0, nature: 0.35, romantic: 0.20, luxury: 0.10 },
   adventurous: { adventurous: 1.0, nature: 0.55, solo: 0.15 },
@@ -251,96 +321,552 @@ const MINDSET_WEIGHTS = {
   luxury:      { luxury: 1.0, romantic: 0.30, relaxed: 0.20, party: 0.05 },
 };
 
-// ─── STATE ─────────────────────────────────────────────────────────────────────
-let activeMindset = null;
+// ─── RECOMMENDATION MODELS METADATA ───────────────────────────────────────────
+const MODELS = {
+  weighted: {
+    id: 'weighted',
+    name: 'Weighted Utility Model',
+    shortName: 'Weighted Utility',
+    icon: '🎯',
+    formula: 'Score = Σ (w_i × p_i)',
+    description: 'Calculates a multi-attribute dot-product based on weight multipliers. Prioritizes destinations that excel in your top selected criteria.'
+  },
+  cosine: {
+    id: 'cosine',
+    name: 'Cosine Similarity Vector Model',
+    shortName: 'Cosine Similarity',
+    icon: '📐',
+    formula: 'cos(θ) = (u · v) / (||u|| × ||v||)',
+    description: 'Evaluates the directional angle between your preference vector and place profiles in 10-dimensional space. Rewards harmonious vibe alignment regardless of raw scale.'
+  },
+  knn: {
+    id: 'knn',
+    name: 'K-Nearest Neighbors (KNN) Distance',
+    shortName: 'KNN Distance',
+    icon: '🧭',
+    formula: 'Sim = 1 - √( Σ w_i (u_i - p_i)² / Σ w_i )',
+    description: 'Measures proximity in 10D feature space using weighted Euclidean distance. Best for finding destinations whose overall personality mirrors yours most accurately.'
+  },
+  mmr: {
+    id: 'mmr',
+    name: 'Hybrid MMR Diversity Model',
+    shortName: 'Hybrid MMR Diversity',
+    icon: '🔮',
+    formula: 'MMR = λ × Rel(p) - (1-λ) × max(Sim(p,s))',
+    description: 'Maximal Marginal Relevance balances high relevance (70%) with variety (30%) across geography and traits, preventing repetitive destinations and exposing hidden gems.'
+  }
+};
 
-// ─── DOM REFS ─────────────────────────────────────────────────────────────────
-const moodGrid       = document.getElementById('moodGrid');
-const resultsSection = document.getElementById('resultsSection');
-const resultsTitle   = document.getElementById('resultsTitle');
-const resultsGrid    = document.getElementById('resultsGrid');
+// ─── APPLICATION STATE ────────────────────────────────────────────────────────
+const state = {
+  activeModel: 'weighted',
+  activeMode: 'mood', // 'mood' | 'mixer' | 'twin'
+  selectedMoods: new Set(['relaxed']),
+  mixerValues: {
+    relaxed: 7,
+    adventurous: 4,
+    romantic: 6,
+    cultural: 5,
+    nature: 7,
+    party: 2,
+    family: 5,
+    solo: 6,
+    budget: 5,
+    luxury: 6
+  },
+  twinPlaceName: 'Maldives',
+  activeRegion: 'all',
+  lastRecommendedPlaces: []
+};
 
-// Modal refs
-const modalBackdrop  = document.getElementById('modalBackdrop');
-const modalIcon      = document.getElementById('modalIcon');
-const modalTitle     = document.getElementById('modalTitle');
-const modalGrid      = document.getElementById('modalGrid');
-const modalClose     = document.getElementById('modalClose');
+// ─── DOM ELEMENTS ─────────────────────────────────────────────────────────────
+const modelTabs         = document.querySelectorAll('.model-tab');
+const modelDescIcon     = document.getElementById('modelDescIcon');
+const modelDescName     = document.getElementById('modelDescName');
+const modelDescDetail   = document.getElementById('modelDescDetail');
+const modelFormula      = document.getElementById('modelFormula');
+const activeModelTag    = document.getElementById('activeModelTag');
 
-// ─── BUILD MOOD BUTTONS ───────────────────────────────────────────────────────
-function buildMoodButtons() {
-  MINDSETS.forEach(mindset => {
-    const btn = document.createElement('button');
-    btn.className = 'mood-btn';
-    btn.id = `mood-${mindset.id}`;
-    btn.setAttribute('role', 'radio');
-    btn.setAttribute('aria-checked', 'false');
-    btn.style.setProperty('--c1', mindset.c1);
-    btn.style.setProperty('--c2', mindset.c2);
-    btn.innerHTML = `<span>${mindset.emoji} ${mindset.label}</span>`;
-    btn.addEventListener('click', () => selectMindset(mindset));
-    moodGrid.appendChild(btn);
-  });
+const modeNavButtons    = document.querySelectorAll('.mode-nav-btn');
+const paneMood          = document.getElementById('paneMood');
+const paneMixer         = document.getElementById('paneMixer');
+const paneTwin          = document.getElementById('paneTwin');
+
+const moodGrid          = document.getElementById('moodGrid');
+const clearMoodsBtn     = document.getElementById('clearMoodsBtn');
+
+const traitSliderGrid   = document.getElementById('traitSliderGrid');
+const presetAdventureBtn= document.getElementById('presetAdventureBtn');
+const presetLuxuryBtn   = document.getElementById('presetLuxuryBtn');
+const presetCulturalBtn = document.getElementById('presetCulturalBtn');
+const resetMixerBtn     = document.getElementById('resetMixerBtn');
+
+const twinSelect        = document.getElementById('twinSelect');
+const twinPreviewCard   = document.getElementById('twinPreviewCard');
+
+const regionButtons     = document.querySelectorAll('.region-btn');
+const resultsTitle      = document.getElementById('resultsTitle');
+const resultsSubtitle   = document.getElementById('resultsSubtitle');
+const resultsCount      = document.getElementById('resultsCount');
+const resultsGrid       = document.getElementById('resultsGrid');
+
+const modalBackdrop     = document.getElementById('modalBackdrop');
+const modalIcon         = document.getElementById('modalIcon');
+const modalTitle        = document.getElementById('modalTitle');
+const modalSubtitle     = document.getElementById('modalSubtitle');
+const modalBody         = document.getElementById('modalBody');
+const modalClose        = document.getElementById('modalClose');
+
+// ─── MATHEMATICAL VECTOR & SIMILARITY FUNCTIONS ───────────────────────────────
+function dotProduct(vecA, vecB) {
+  let sum = 0;
+  for (const attr of ATTRIBUTES) {
+    sum += (vecA[attr] || 0) * (vecB[attr] || 0);
+  }
+  return sum;
 }
 
-// ─── SCORING ALGORITHM ────────────────────────────────────────────────────────
-/**
- * recommend(mindsetId) → Array of top-10 place objects, each augmented with:
- *   .score    – raw weighted dot-product score
- *   .matchPct – score as a % of theoretical maximum (for display badge)
- */
-function recommend(mindsetId) {
-  const weights = MINDSET_WEIGHTS[mindsetId];
-
-  // Dot-product score for every place
-  const scored = PLACES.map(place => {
-    const raw = Object.entries(weights).reduce((sum, [attr, w]) => {
-      return sum + (place.tags[attr] ?? 0) * w;
-    }, 0);
-    return { ...place, score: raw };
-  });
-
-  // Theoretical max: every attribute scores 10
-  const maxScore = Object.values(weights).reduce((s, w) => s + 10 * w, 0);
-
-  scored.forEach(p => { p.matchPct = Math.round((p.score / maxScore) * 100); });
-  scored.sort((a, b) => b.score - a.score);
-
-  return scored.slice(0, 10);
+function vectorMagnitude(vec) {
+  let sumSq = 0;
+  for (const attr of ATTRIBUTES) {
+    const val = vec[attr] || 0;
+    sumSq += val * val;
+  }
+  return Math.sqrt(sumSq);
 }
 
-// ─── CARD BUILDER ────────────────────────────────────────────────────────────
-function buildCards(mindset, container) {
-  const places = recommend(mindset.id);
-  container.innerHTML = '';
+function cosineSimilarity(vecA, vecB) {
+  const magA = vectorMagnitude(vecA);
+  const magB = vectorMagnitude(vecB);
+  if (magA === 0 || magB === 0) return 0;
+  return dotProduct(vecA, vecB) / (magA * magB);
+}
+
+// ─── MODEL 1: WEIGHTED UTILITY ────────────────────────────────────────────────
+function computeWeightedScore(prefVector, placeTags) {
+  let raw = 0;
+  let maxPossible = 0;
+  for (const attr of ATTRIBUTES) {
+    const w = prefVector[attr] || 0;
+    const p = placeTags[attr] || 0;
+    raw += w * p;
+    maxPossible += w * 10;
+  }
+  const pct = maxPossible > 0 ? Math.round((raw / maxPossible) * 100) : 0;
+  return {
+    rawScore: raw,
+    matchPct: Math.min(100, Math.max(0, pct))
+  };
+}
+
+// ─── MODEL 2: COSINE SIMILARITY ───────────────────────────────────────────────
+function computeCosineScore(prefVector, placeTags) {
+  const sim = cosineSimilarity(prefVector, placeTags);
+  const pct = Math.round(Math.min(1, Math.max(0, sim)) * 100);
+  return {
+    rawScore: sim,
+    matchPct: pct
+  };
+}
+
+// ─── MODEL 3: KNN FEATURE SPACE DISTANCE ──────────────────────────────────────
+function computeKnnScore(prefVector, placeTags) {
+  let weightedSqDist = 0;
+  let totalWeight = 0;
+
+  let maxW = 0;
+  for (const attr of ATTRIBUTES) {
+    if ((prefVector[attr] || 0) > maxW) maxW = prefVector[attr];
+  }
+  if (maxW === 0) maxW = 1;
+
+  for (const attr of ATTRIBUTES) {
+    const w = prefVector[attr] || 0;
+    if (w <= 0) continue;
+
+    const targetVal = (w / maxW) * 10;
+    const placeVal = placeTags[attr] || 0;
+    const diff = (targetVal - placeVal) / 10; // normalized to [-1, 1]
+
+    weightedSqDist += w * (diff * diff);
+    totalWeight += w;
+  }
+
+  if (totalWeight === 0) return { rawScore: 0, matchPct: 50 };
+
+  const normDist = Math.sqrt(weightedSqDist / totalWeight); // in [0, 1]
+  const sim = Math.max(0, 1 - normDist);
+  const pct = Math.round(sim * 100);
+  return {
+    rawScore: sim,
+    matchPct: pct
+  };
+}
+
+// ─── MODEL 4: HYBRID MMR (MAXIMAL MARGINAL RELEVANCE) ─────────────────────────
+function computeMmrRecommendations(prefVector, candidatePlaces, topK = 10, lambda = 0.72) {
+  const scored = candidatePlaces.map(place => {
+    const cosSim = cosineSimilarity(prefVector, place.tags);
+    return {
+      place,
+      relevance: cosSim,
+      tags: place.tags
+    };
+  });
+
+  const selected = [];
+  const remaining = [...scored];
+
+  while (selected.length < topK && remaining.length > 0) {
+    let bestScore = -Infinity;
+    let bestIdx = -1;
+
+    for (let i = 0; i < remaining.length; i++) {
+      const cand = remaining[i];
+      let maxSimToSelected = 0;
+
+      for (const sel of selected) {
+        let sim = cosineSimilarity(cand.tags, sel.tags);
+        // Region proximity factor to encourage continental diversity
+        if (cand.place.country === sel.country || REGION_MAP[cand.place.name] === REGION_MAP[sel.name]) {
+          sim = Math.min(1, sim + 0.15);
+        }
+        if (sim > maxSimToSelected) maxSimToSelected = sim;
+      }
+
+      const mmrScore = selected.length === 0
+        ? cand.relevance
+        : (lambda * cand.relevance) - ((1 - lambda) * maxSimToSelected);
+
+      if (mmrScore > bestScore) {
+        bestScore = mmrScore;
+        bestIdx = i;
+      }
+    }
+
+    if (bestIdx >= 0) {
+      const chosen = remaining.splice(bestIdx, 1)[0];
+      const matchPct = Math.round(Math.min(1, Math.max(0, chosen.relevance)) * 100);
+      selected.push({
+        ...chosen.place,
+        rawScore: bestScore,
+        matchPct: matchPct
+      });
+    } else {
+      break;
+    }
+  }
+
+  return selected;
+}
+
+// ─── GET ACTIVE USER PREFERENCE VECTOR ────────────────────────────────────────
+function getActiveUserVector() {
+  const vec = {};
+  for (const attr of ATTRIBUTES) vec[attr] = 0;
+
+  if (state.activeMode === 'mood') {
+    if (state.selectedMoods.size === 0) {
+      // Default to neutral / equal preference
+      for (const attr of ATTRIBUTES) vec[attr] = 1;
+      return vec;
+    }
+
+    state.selectedMoods.forEach(moodId => {
+      const weights = MINDSET_WEIGHTS[moodId] || {};
+      for (const [attr, val] of Object.entries(weights)) {
+        vec[attr] = (vec[attr] || 0) + val;
+      }
+    });
+
+    // Normalize so highest weight is ~1.0
+    const maxVal = Math.max(...Object.values(vec));
+    if (maxVal > 0) {
+      for (const attr of ATTRIBUTES) vec[attr] = (vec[attr] / maxVal);
+    }
+    return vec;
+  }
+
+  if (state.activeMode === 'mixer') {
+    for (const attr of ATTRIBUTES) {
+      vec[attr] = (state.mixerValues[attr] || 0) / 10;
+    }
+    return vec;
+  }
+
+  if (state.activeMode === 'twin') {
+    const twin = PLACES.find(p => p.name === state.twinPlaceName) || PLACES[0];
+    for (const attr of ATTRIBUTES) {
+      vec[attr] = (twin.tags[attr] || 0) / 10;
+    }
+    return vec;
+  }
+
+  return vec;
+}
+
+// ─── MASTER RECOMMENDATION ENGINE ─────────────────────────────────────────────
+function generateRecommendations() {
+  const userVec = getActiveUserVector();
+  const modelId = state.activeModel;
+
+  // Filter candidate pool by region
+  let pool = PLACES;
+  if (state.activeRegion !== 'all') {
+    pool = pool.filter(p => REGION_MAP[p.name] === state.activeRegion);
+  }
+
+  // If in twin mode, exclude the anchor place itself from results
+  if (state.activeMode === 'twin') {
+    pool = pool.filter(p => p.name !== state.twinPlaceName);
+  }
+
+  let ranked = [];
+
+  if (modelId === 'mmr') {
+    ranked = computeMmrRecommendations(userVec, pool, 10, 0.70);
+  } else {
+    ranked = pool.map(place => {
+      let scoreInfo;
+      if (modelId === 'weighted') {
+        scoreInfo = computeWeightedScore(userVec, place.tags);
+      } else if (modelId === 'cosine') {
+        scoreInfo = computeCosineScore(userVec, place.tags);
+      } else if (modelId === 'knn') {
+        scoreInfo = computeKnnScore(userVec, place.tags);
+      } else {
+        scoreInfo = computeWeightedScore(userVec, place.tags);
+      }
+      return {
+        ...place,
+        rawScore: scoreInfo.rawScore,
+        matchPct: scoreInfo.matchPct
+      };
+    });
+
+    ranked.sort((a, b) => b.rawScore - a.rawScore);
+    ranked = ranked.slice(0, 10);
+  }
+
+  state.lastRecommendedPlaces = ranked;
+  renderResults(ranked);
+}
+
+// ─── RENDER RESULTS ───────────────────────────────────────────────────────────
+function renderResults(places) {
+  resultsGrid.innerHTML = '';
+  resultsCount.textContent = `${places.length} places recommended`;
+
+  // Update header text based on mode and model
+  let criteriaTitle = 'Top Recommendations';
+  let criteriaSub = `Ranked by ${MODELS[state.activeModel].name}`;
+
+  if (state.activeMode === 'mood') {
+    const names = Array.from(state.selectedMoods).map(id => {
+      const m = MINDSETS.find(item => item.id === id);
+      return m ? `${m.emoji} ${m.label}` : id;
+    });
+    if (names.length > 0) {
+      criteriaTitle = `Best For: ${names.join(' + ')}`;
+    } else {
+      criteriaTitle = 'Recommendations: Balanced Travel';
+    }
+  } else if (state.activeMode === 'mixer') {
+    criteriaTitle = 'Custom Trait Blend Recommendations';
+  } else if (state.activeMode === 'twin') {
+    criteriaTitle = `Places Similar to ${state.twinPlaceName}`;
+    criteriaSub = `Destination twins identified via ${MODELS[state.activeModel].shortName}`;
+  }
+
+  resultsTitle.textContent = criteriaTitle;
+  resultsSubtitle.textContent = criteriaSub;
+
+  if (places.length === 0) {
+    resultsGrid.innerHTML = `
+      <div class="empty-state">
+        <span class="empty-icon">🌍</span>
+        <h3>No places found for this region</h3>
+        <p>Try switching to "All Regions" to discover matching destinations worldwide.</p>
+      </div>
+    `;
+    return;
+  }
 
   places.forEach((place, idx) => {
     const card = document.createElement('article');
     card.className = 'place-card';
-    card.style.setProperty('--c1', mindset.c1);
-    card.style.setProperty('--c2', mindset.c2);
+    card.style.setProperty('--c1', getMoodColor(0));
+    card.style.setProperty('--c2', getMoodColor(1));
+
+    // Determine top 2 matching traits for badges
+    const sortedTags = Object.entries(place.tags)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 2);
+
+    const tagBadges = sortedTags.map(([tag, val]) => {
+      const meta = ATTR_META[tag];
+      return `<span class="trait-tag" style="--tag-color: ${meta.color}">
+        ${meta.icon} ${meta.label} <strong>${val}/10</strong>
+      </span>`;
+    }).join('');
+
+    const region = REGION_MAP[place.name] || 'Global';
 
     card.innerHTML = `
       <div class="place-num">${String(idx + 1).padStart(2, '0')}</div>
       <div class="place-info">
         <div class="place-name-row">
           <div class="place-name">${place.name}</div>
-          <div class="place-match" title="Match score">${place.matchPct}%</div>
+          <div class="place-match" title="Algorithm Match Score">${place.matchPct}%</div>
         </div>
-        <div class="place-country">${place.country}</div>
+        <div class="place-country-row">
+          <span class="place-country">${place.country}</span>
+          <span class="place-region-pill">${region}</span>
+        </div>
         <p class="place-note">${place.note}</p>
+        <div class="place-tags-row">${tagBadges}</div>
+        <div class="card-action-row">
+          <button class="btn-card-action btn-inspect" data-name="${place.name}">
+            <span>🔍 Details</span>
+          </button>
+          <button class="btn-card-action btn-twin" data-name="${place.name}" title="Find places similar to ${place.name}">
+            <span>📍 Find Twins</span>
+          </button>
+        </div>
       </div>
       <div class="place-emoji">${place.icon}</div>
     `;
-    container.appendChild(card);
+
+    // Attach listeners
+    card.querySelector('.btn-inspect').addEventListener('click', (e) => {
+      e.stopPropagation();
+      openModalForPlace(place);
+    });
+
+    card.querySelector('.btn-twin').addEventListener('click', (e) => {
+      e.stopPropagation();
+      switchToTwinMode(place.name);
+    });
+
+    // Clicking card opens details
+    card.addEventListener('click', () => {
+      openModalForPlace(place);
+    });
+
+    resultsGrid.appendChild(card);
   });
 }
 
-// ─── MODAL HELPERS ────────────────────────────────────────────────────────────
-function openModal(mindset) {
-  modalIcon.textContent  = mindset.emoji;
-  modalTitle.textContent = `Top 10 places for a ${mindset.label} mindset`;
-  buildCards(mindset, modalGrid);
+function getMoodColor(index) {
+  const activeArr = Array.from(state.selectedMoods);
+  if (activeArr.length > 0) {
+    const firstMood = MINDSETS.find(m => m.id === activeArr[0]);
+    if (firstMood) return index === 0 ? firstMood.c1 : firstMood.c2;
+  }
+  return index === 0 ? '#6366f1' : '#ec4899';
+}
+
+// ─── SWITCH TO TWIN MODE SHORTCUT ─────────────────────────────────────────────
+function switchToTwinMode(placeName) {
+  state.twinPlaceName = placeName;
+  state.activeMode = 'twin';
+
+  // Update tabs
+  modeNavButtons.forEach(b => {
+    const isTwin = b.dataset.mode === 'twin';
+    b.classList.toggle('active', isTwin);
+    b.setAttribute('aria-selected', isTwin);
+  });
+
+  paneMood.style.display = 'none';
+  paneMixer.style.display = 'none';
+  paneTwin.style.display = 'block';
+
+  twinSelect.value = placeName;
+  renderTwinPreview();
+  generateRecommendations();
+
+  // Scroll to results smoothly
+  document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ─── MODAL DETAIL BREAKDOWN ───────────────────────────────────────────────────
+function openModalForPlace(place) {
+  modalIcon.textContent = place.icon;
+  modalTitle.textContent = `${place.name}, ${place.country}`;
+  modalSubtitle.textContent = `Scored with ${MODELS[state.activeModel].name}`;
+
+  const userVec = getActiveUserVector();
+  const region = REGION_MAP[place.name] || 'Global';
+
+  // Render attribute breakdown comparison
+  const traitBars = ATTRIBUTES.map(attr => {
+    const meta = ATTR_META[attr];
+    const placeVal = place.tags[attr] || 0;
+    const userVal = Math.round((userVec[attr] || 0) * 10);
+    const placePct = (placeVal / 10) * 100;
+    const userPct = (userVal / 10) * 100;
+
+    return `
+      <div class="modal-trait-row">
+        <div class="modal-trait-label">
+          <span>${meta.icon} ${meta.label}</span>
+          <span class="trait-score-val">Place: <strong>${placeVal}/10</strong> (User: ${userVal}/10)</span>
+        </div>
+        <div class="trait-bar-track">
+          <div class="trait-bar-fill user-pref" style="width: ${userPct}%;" title="User preference"></div>
+          <div class="trait-bar-fill place-actual" style="width: ${placePct}%; background-color: ${meta.color};" title="Place score"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  modalBody.innerHTML = `
+    <div class="modal-banner">
+      <div class="modal-match-box">
+        <span class="modal-match-score">${place.matchPct}%</span>
+        <span class="modal-match-label">Vibe Match</span>
+      </div>
+      <div class="modal-summary">
+        <span class="modal-region-badge">🌍 ${region}</span>
+        <p class="modal-note-text">${place.note}</p>
+      </div>
+    </div>
+
+    <div class="modal-analysis-card">
+      <div class="analysis-header">
+        <span class="analysis-icon">${MODELS[state.activeModel].icon}</span>
+        <strong>Algorithm Evaluation</strong>
+      </div>
+      <p class="analysis-text">
+        Under the <strong>${MODELS[state.activeModel].name}</strong>, ${place.name} ranks with a match affinity of <strong>${place.matchPct}%</strong>.
+        ${MODELS[state.activeModel].description}
+      </p>
+    </div>
+
+    <div class="modal-traits-section">
+      <div class="modal-traits-header">
+        <h3 class="modal-traits-title">10-Dimension Trait Breakdown</h3>
+        <div class="modal-legend">
+          <span class="legend-item"><span class="legend-color legend-user"></span> Target Profile</span>
+          <span class="legend-item"><span class="legend-color legend-place"></span> Destination Score</span>
+        </div>
+      </div>
+      <div class="modal-traits-list">${traitBars}</div>
+    </div>
+
+    <div class="modal-footer-actions">
+      <button class="btn-modal-action" id="modalTwinBtn">
+        <span>📍 Find Destinations Similar to ${place.name}</span>
+      </button>
+    </div>
+  `;
+
+  document.getElementById('modalTwinBtn').addEventListener('click', () => {
+    closeModal();
+    switchToTwinMode(place.name);
+  });
+
   modalBackdrop.classList.add('open');
   document.body.style.overflow = 'hidden';
 }
@@ -350,36 +876,264 @@ function closeModal() {
   document.body.style.overflow = '';
 }
 
-// Close on ✕ button
 modalClose.addEventListener('click', closeModal);
-
-// Close on backdrop click (outside .modal)
 modalBackdrop.addEventListener('click', (e) => {
   if (e.target === modalBackdrop) closeModal();
 });
-
-// Close on Escape key
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && modalBackdrop.classList.contains('open')) closeModal();
 });
 
-// ─── SELECT MINDSET ───────────────────────────────────────────────────────────
-function selectMindset(mindset) {
-  // Update active button
-  document.querySelectorAll('.mood-btn').forEach(btn => {
-    btn.classList.remove('active');
-    btn.setAttribute('aria-checked', 'false');
+// ─── INITIALIZE MODEL SELECTOR ────────────────────────────────────────────────
+function initModelSelector() {
+  modelTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const modelId = tab.dataset.model;
+      if (state.activeModel === modelId) return;
+
+      state.activeModel = modelId;
+
+      modelTabs.forEach(t => {
+        const isActive = t.dataset.model === modelId;
+        t.classList.toggle('active', isActive);
+        t.setAttribute('aria-selected', isActive);
+      });
+
+      // Update info banner
+      const m = MODELS[modelId];
+      modelDescIcon.textContent = m.icon;
+      modelDescName.textContent = m.name;
+      modelDescDetail.textContent = m.description;
+      modelFormula.innerHTML = m.formula;
+      activeModelTag.textContent = `Model: ${m.shortName}`;
+
+      // Recalculate recommendations immediately with smooth animation
+      generateRecommendations();
+    });
   });
-  const activeBtn = document.getElementById(`mood-${mindset.id}`);
-  activeBtn.classList.add('active');
-  activeBtn.setAttribute('aria-checked', 'true');
-
-  activeMindset = mindset;
-
-  // Open modal with recommendations
-  openModal(mindset);
 }
 
-// ─── INIT ─────────────────────────────────────────────────────────────────────
-buildMoodButtons();
+// ─── INITIALIZE INPUT MODE SWITCHER ───────────────────────────────────────────
+function initModeSwitcher() {
+  modeNavButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.mode;
+      if (state.activeMode === mode) return;
 
+      state.activeMode = mode;
+
+      modeNavButtons.forEach(b => {
+        const isActive = b.dataset.mode === mode;
+        b.classList.toggle('active', isActive);
+        b.setAttribute('aria-selected', isActive);
+      });
+
+      paneMood.style.display = mode === 'mood' ? 'block' : 'none';
+      paneMixer.style.display = mode === 'mixer' ? 'block' : 'none';
+      paneTwin.style.display = mode === 'twin' ? 'block' : 'none';
+
+      if (mode === 'twin') {
+        renderTwinPreview();
+      }
+
+      generateRecommendations();
+    });
+  });
+}
+
+// ─── INITIALIZE MOOD PRESETS (MULTI-SELECT SUPPORT) ───────────────────────────
+function initMoodPresets() {
+  moodGrid.innerHTML = '';
+  MINDSETS.forEach(mindset => {
+    const btn = document.createElement('button');
+    btn.className = `mood-btn ${state.selectedMoods.has(mindset.id) ? 'active' : ''}`;
+    btn.id = `mood-${mindset.id}`;
+    btn.setAttribute('role', 'checkbox');
+    btn.setAttribute('aria-checked', state.selectedMoods.has(mindset.id) ? 'true' : 'false');
+    btn.style.setProperty('--c1', mindset.c1);
+    btn.style.setProperty('--c2', mindset.c2);
+    btn.innerHTML = `<span>${mindset.emoji} ${mindset.label}</span>`;
+
+    btn.addEventListener('click', () => {
+      if (state.selectedMoods.has(mindset.id)) {
+        // Toggle off, but keep at least 1 mood active if user unselects all
+        state.selectedMoods.delete(mindset.id);
+        if (state.selectedMoods.size === 0) {
+          state.selectedMoods.add('relaxed');
+          document.getElementById('mood-relaxed')?.classList.add('active');
+          document.getElementById('mood-relaxed')?.setAttribute('aria-checked', 'true');
+        }
+        btn.classList.remove('active');
+        btn.setAttribute('aria-checked', 'false');
+      } else {
+        state.selectedMoods.add(mindset.id);
+        btn.classList.add('active');
+        btn.setAttribute('aria-checked', 'true');
+      }
+
+      generateRecommendations();
+    });
+
+    moodGrid.appendChild(btn);
+  });
+
+  clearMoodsBtn.addEventListener('click', () => {
+    state.selectedMoods.clear();
+    state.selectedMoods.add('relaxed');
+    document.querySelectorAll('.mood-btn').forEach(b => {
+      const isRelaxed = b.id === 'mood-relaxed';
+      b.classList.toggle('active', isRelaxed);
+      b.setAttribute('aria-checked', isRelaxed ? 'true' : 'false');
+    });
+    generateRecommendations();
+  });
+}
+
+// ─── INITIALIZE TRAIT MIXER SLIDERS ───────────────────────────────────────────
+function initTraitMixer() {
+  traitSliderGrid.innerHTML = '';
+
+  ATTRIBUTES.forEach(attr => {
+    const meta = ATTR_META[attr];
+    const val = state.mixerValues[attr];
+
+    const item = document.createElement('div');
+    item.className = 'trait-slider-item';
+
+    item.innerHTML = `
+      <div class="slider-label-row">
+        <span class="slider-title">${meta.icon} ${meta.label}</span>
+        <span class="slider-val" id="val-${attr}">${val}</span>
+      </div>
+      <input type="range" class="trait-range" id="range-${attr}" min="0" max="10" step="1" value="${val}" style="--accent-color: ${meta.color}" />
+    `;
+
+    const input = item.querySelector('.trait-range');
+    const label = item.querySelector('.slider-val');
+
+    input.addEventListener('input', (e) => {
+      const newVal = parseInt(e.target.value, 10);
+      state.mixerValues[attr] = newVal;
+      label.textContent = newVal;
+      generateRecommendations();
+    });
+
+    traitSliderGrid.appendChild(item);
+  });
+
+  // Mixer Presets
+  presetAdventureBtn.addEventListener('click', () => {
+    setMixerProfile({ relaxed: 3, adventurous: 10, romantic: 4, cultural: 5, nature: 10, party: 3, family: 4, solo: 9, budget: 6, luxury: 3 });
+  });
+
+  presetLuxuryBtn.addEventListener('click', () => {
+    setMixerProfile({ relaxed: 9, adventurous: 3, romantic: 9, cultural: 6, nature: 6, party: 4, family: 5, solo: 4, budget: 1, luxury: 10 });
+  });
+
+  presetCulturalBtn.addEventListener('click', () => {
+    setMixerProfile({ relaxed: 5, adventurous: 4, romantic: 7, cultural: 10, nature: 4, party: 4, family: 7, solo: 8, budget: 6, luxury: 6 });
+  });
+
+  resetMixerBtn.addEventListener('click', () => {
+    setMixerProfile({ relaxed: 5, adventurous: 5, romantic: 5, cultural: 5, nature: 5, party: 5, family: 5, solo: 5, budget: 5, luxury: 5 });
+  });
+}
+
+function setMixerProfile(profile) {
+  for (const [attr, val] of Object.entries(profile)) {
+    state.mixerValues[attr] = val;
+    const input = document.getElementById(`range-${attr}`);
+    const label = document.getElementById(`val-${attr}`);
+    if (input) input.value = val;
+    if (label) label.textContent = val;
+  }
+  generateRecommendations();
+}
+
+// ─── INITIALIZE DESTINATION TWIN SELECTOR ──────────────────────────────────────
+function initTwinSelector() {
+  twinSelect.innerHTML = '';
+  // Sort alphabetically for clean selection
+  const sorted = [...PLACES].sort((a, b) => a.name.localeCompare(b.name));
+
+  sorted.forEach(place => {
+    const opt = document.createElement('option');
+    opt.value = place.name;
+    opt.textContent = `${place.icon} ${place.name} (${place.country})`;
+    if (place.name === state.twinPlaceName) opt.selected = true;
+    twinSelect.appendChild(opt);
+  });
+
+  twinSelect.addEventListener('change', (e) => {
+    state.twinPlaceName = e.target.value;
+    renderTwinPreview();
+    generateRecommendations();
+  });
+
+  renderTwinPreview();
+}
+
+function renderTwinPreview() {
+  const place = PLACES.find(p => p.name === state.twinPlaceName) || PLACES[0];
+  const region = REGION_MAP[place.name] || 'Global';
+
+  // Find top 3 traits of anchor
+  const topTraits = Object.entries(place.tags)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([attr, val]) => {
+      const meta = ATTR_META[attr];
+      return `<span class="trait-tag" style="--tag-color: ${meta.color}">${meta.icon} ${meta.label}: ${val}/10</span>`;
+    })
+    .join('');
+
+  twinPreviewCard.innerHTML = `
+    <div class="twin-preview-inner">
+      <span class="twin-preview-icon">${place.icon}</span>
+      <div class="twin-preview-details">
+        <div class="twin-preview-name-row">
+          <strong>${place.name}</strong>
+          <span class="place-region-pill">${region}</span>
+        </div>
+        <p class="twin-preview-note">${place.note}</p>
+        <div class="twin-preview-traits">${topTraits}</div>
+      </div>
+    </div>
+  `;
+}
+
+// ─── INITIALIZE REGION FILTERS ────────────────────────────────────────────────
+function initRegionFilters() {
+  regionButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const region = btn.dataset.region;
+      state.activeRegion = region;
+
+      regionButtons.forEach(b => {
+        b.classList.toggle('active', b.dataset.region === region);
+      });
+
+      generateRecommendations();
+    });
+  });
+}
+
+// ─── INITIALIZE APPLICATION ───────────────────────────────────────────────────
+function init() {
+  initModelSelector();
+  initModeSwitcher();
+  initMoodPresets();
+  initTraitMixer();
+  initTwinSelector();
+  initRegionFilters();
+
+  // Run initial recommendation
+  generateRecommendations();
+}
+
+// Start when DOM is loaded
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}

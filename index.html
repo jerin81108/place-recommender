@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mindset Place Recommender</title>
-  <meta name="description" content="Discover the best travel destinations based on your current mindset. 10 curated places for every mood." />
+  <title>Mindset Place Recommender — Multi-Model AI Engine</title>
+  <meta name="description" content="Discover curated travel destinations using selectable recommendation algorithms: Weighted Utility, Cosine Similarity, KNN Distance, and Hybrid MMR Diversity." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -21,34 +21,169 @@
     <header class="hero">
       <div class="hero-icon">🧭</div>
       <h1 class="hero-title">Where Should You Go?</h1>
-      <p class="hero-sub">Tell us your mindset — we'll find your perfect destination.</p>
+      <p class="hero-sub">Multi-Model AI destination recommender — pick an algorithm and select your vibe.</p>
     </header>
 
-    <section class="mood-picker" aria-label="Mindset selector">
-      <p class="mood-label">I'm feeling…</p>
-      <div class="mood-grid" id="moodGrid" role="radiogroup" aria-label="Select your mood"></div>
+    <!-- ── Recommendation Model Selector ── -->
+    <section class="model-selection-card" aria-label="Recommendation Model Selector">
+      <div class="section-label-row">
+        <span class="section-badge">ALGORITHM ENGINE</span>
+        <span class="model-count-tag">4 Models Available</span>
+      </div>
+      <h2 class="model-section-title">Select Recommendation Model</h2>
+
+      <div class="model-tabs" id="modelTabs" role="tablist" aria-label="Recommendation Models">
+        <button class="model-tab active" data-model="weighted" role="tab" aria-selected="true" id="modelTabWeighted">
+          <span class="model-tab-icon">🎯</span>
+          <div class="model-tab-text">
+            <strong>Weighted Utility</strong>
+            <small>Attribute Dot-Product</small>
+          </div>
+        </button>
+
+        <button class="model-tab" data-model="cosine" role="tab" aria-selected="false" id="modelTabCosine">
+          <span class="model-tab-icon">📐</span>
+          <div class="model-tab-text">
+            <strong>Cosine Similarity</strong>
+            <small>Vector Space Angle</small>
+          </div>
+        </button>
+
+        <button class="model-tab" data-model="knn" role="tab" aria-selected="false" id="modelTabKnn">
+          <span class="model-tab-icon">🧭</span>
+          <div class="model-tab-text">
+            <strong>KNN Distance</strong>
+            <small>Feature Space Proximity</small>
+          </div>
+        </button>
+
+        <button class="model-tab" data-model="mmr" role="tab" aria-selected="false" id="modelTabMmr">
+          <span class="model-tab-icon">🔮</span>
+          <div class="model-tab-text">
+            <strong>Hybrid MMR</strong>
+            <small>Relevance + Diversity</small>
+          </div>
+        </button>
+      </div>
+
+      <!-- Dynamic Model Info Box -->
+      <div class="model-desc-box" id="modelDescBox">
+        <div class="model-desc-top">
+          <span class="model-desc-icon" id="modelDescIcon">🎯</span>
+          <div class="model-desc-content">
+            <div class="model-desc-name" id="modelDescName">Weighted Utility Model</div>
+            <p class="model-desc-detail" id="modelDescDetail">
+              Calculates a weighted linear dot-product based on attribute multipliers. Places excelling in high-priority traits rank highest.
+            </p>
+          </div>
+        </div>
+        <div class="model-formula-pill" id="modelFormula">Score = &Sigma; (w<sub>i</sub> &times; p<sub>i</sub>)</div>
+      </div>
     </section>
 
-    <section class="results-section" id="resultsSection" aria-label="Recommended places" style="display:none;">
-      <h2 class="results-title" id="resultsTitle"></h2>
+    <!-- ── Input Selection Mode Switcher ── -->
+    <section class="selection-mode-card" aria-label="Preference selection mode">
+      <div class="mode-nav" role="tablist" aria-label="Selection Input Modes">
+        <button class="mode-nav-btn active" id="tabMood" data-mode="mood" role="tab" aria-selected="true">
+          <span>🎭</span> Mindset Presets
+        </button>
+        <button class="mode-nav-btn" id="tabMixer" data-mode="mixer" role="tab" aria-selected="false">
+          <span>🎛️</span> Trait Mixer
+        </button>
+        <button class="mode-nav-btn" id="tabTwin" data-mode="twin" role="tab" aria-selected="false">
+          <span>📍</span> Destination Twin
+        </button>
+      </div>
+
+      <!-- Pane 1: Mood Presets (supports multi-selection!) -->
+      <div class="mode-pane active" id="paneMood">
+        <div class="pane-header">
+          <p class="pane-subtitle">Click a mood or select multiple to blend their attribute profiles:</p>
+          <div class="pane-controls">
+            <button class="btn-ghost-sm" id="clearMoodsBtn" title="Reset all selected moods">Reset</button>
+          </div>
+        </div>
+        <div class="mood-grid" id="moodGrid" role="group" aria-label="Select your mood"></div>
+        <div class="multi-select-hint">
+          <span>💡 Pro Tip:</span> You can toggle multiple mindsets (e.g. <em>Adventurous + Budget</em> or <em>Romantic + Nature</em>) to blend their vectors!
+        </div>
+      </div>
+
+      <!-- Pane 2: Custom Trait Mixer -->
+      <div class="mode-pane" id="paneMixer" style="display:none;">
+        <div class="pane-header">
+          <p class="pane-subtitle">Fine-tune each dimension (0 to 10) to form a tailored user preference vector:</p>
+          <div class="pane-controls">
+            <button class="btn-ghost-sm" id="presetAdventureBtn">🧗 Explorer</button>
+            <button class="btn-ghost-sm" id="presetLuxuryBtn">💎 Luxury Chill</button>
+            <button class="btn-ghost-sm" id="presetCulturalBtn">🏛️ Culture Quest</button>
+            <button class="btn-ghost-sm" id="resetMixerBtn">Reset Sliders</button>
+          </div>
+        </div>
+        <div class="trait-slider-grid" id="traitSliderGrid"></div>
+      </div>
+
+      <!-- Pane 3: Destination Twin -->
+      <div class="mode-pane" id="paneTwin" style="display:none;">
+        <div class="pane-header">
+          <p class="pane-subtitle">Pick a place you adore — the active model will find matching destinations across the world:</p>
+        </div>
+        <div class="twin-picker-row">
+          <label for="twinSelect" class="twin-label">Anchor Destination:</label>
+          <select id="twinSelect" class="twin-select"></select>
+        </div>
+        <div class="twin-preview-card" id="twinPreviewCard"></div>
+      </div>
+    </section>
+
+    <!-- ── Filter & Sort Bar ── -->
+    <div class="results-controls">
+      <div class="region-filters" id="regionFilters" role="group" aria-label="Filter by region">
+        <button class="region-btn active" data-region="all">All Regions</button>
+        <button class="region-btn" data-region="Europe">Europe</button>
+        <button class="region-btn" data-region="Asia">Asia</button>
+        <button class="region-btn" data-region="Americas">Americas</button>
+        <button class="region-btn" data-region="Africa">Africa</button>
+        <button class="region-btn" data-region="Oceania">Oceania</button>
+      </div>
+
+      <div class="results-meta">
+        <span class="active-model-tag" id="activeModelTag">Model: Weighted Utility</span>
+      </div>
+    </div>
+
+    <!-- ── Results Section ── -->
+    <section class="results-section" id="resultsSection" aria-label="Recommended places">
+      <div class="results-header-row">
+        <div>
+          <h2 class="results-title" id="resultsTitle">Top Recommendations</h2>
+          <p class="results-subtitle" id="resultsSubtitle">Calculating best matches...</p>
+        </div>
+        <div class="results-count-badge" id="resultsCount">10 places found</div>
+      </div>
+
       <div class="results-grid" id="resultsGrid"></div>
     </section>
   </main>
 
-  <!-- ── Place Picker Modal ── -->
+  <!-- ── Place Detail & Deep-Dive Modal ── -->
   <div class="modal-backdrop" id="modalBackdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal" id="modal">
       <div class="modal-header">
         <div class="modal-header-left">
-          <span class="modal-icon" id="modalIcon"></span>
-          <h2 class="modal-title" id="modalTitle"></h2>
+          <span class="modal-icon" id="modalIcon">🏝️</span>
+          <div>
+            <h2 class="modal-title" id="modalTitle">Destination Details</h2>
+            <p class="modal-subtitle" id="modalSubtitle">Profile breakdown & model analysis</p>
+          </div>
         </div>
         <button class="modal-close" id="modalClose" aria-label="Close modal">&times;</button>
       </div>
-      <div class="modal-grid" id="modalGrid"></div>
+      <div class="modal-body" id="modalBody">
+        <!-- Injected via JavaScript -->
+      </div>
     </div>
   </div>
-
 
   <script src="script.js"></script>
 </body>
